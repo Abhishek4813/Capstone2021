@@ -2,18 +2,19 @@ const express = require('express');
 const process=require("child_process");
 const router = express.Router();
 
-ls=process.exec("../discover/discover.sh");
-function execute(v){
+function execute(ls, v){
 ls.stdout.on('data', function (data) {
-   console.log(data.toString());
    ls.stdin.write(v+'\n');
 });
 }
-execute(2);
-execute("Abhishek");
-execute("Kumar");
-router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+
+router.post('/people', function(req, res, next) {
+  const {firstname,lastname}=req.body;
+  ls=process.exec("./discover/discover.sh");
+  execute(ls,2);
+  execute(ls,firstname);
+  execute(ls,lastname);
+  res.status(200).end();
 });
 
 module.exports = router;
